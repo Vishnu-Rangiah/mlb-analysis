@@ -1,5 +1,5 @@
 ---
-title: "Homework 3 STA 141B"
+title: "Lahman MLB Analysis"
 author: "Vishnu Rangiah"
 date: "November 10, 2020"
 output:
@@ -8,36 +8,39 @@ output:
 ---
 
 
-## Introduction
+### Introduction
 
 In this report we will be exploring many aspects of baseball data through the use of R, SQL and "The Lahman Baseball Database" provided as a SQLite database. The data base contains 24 tables which we will interact with using the RSQLite and DBI packages for R. "This database covers Major League Baseball information from 1871 through 2013 about pitching, hitting, and fielding statistics."
 
 We will structure our report through the use of questions which reveal interesting aspects about the provided baseball data such as "finding the relationship between games won in a season and winning the World Series."
 
-
-```{r, echo=FALSE, warn=FALSE}
-#IMPORTING DATASET 
+```{r, echo=FALSE, warning=FALSE}
+# Installing Libraries 
 library("RSQLite")
 library("DBI")
+library(ggplot2)
+```
 
-setwd("C:/Users/Vishnu Rangiah/Downloads")
+### Loading Dataset
+```{r, echo=FALSE, warning=FALSE}
+setwd("C:/Users/Ramesh/mlb-analysis")
+
 db <- dbConnect(SQLite(), "lahman2013.sqlite")
-# Help document: 
-# http://www.seanlahman.com/files/database/readme2013.txt
+
 dbListTables(db)
 ```
+
 To begin our report we will connect to the "lahman2013.sqlite" database and observe the names of all 24 Tables.  
 
-### Questions 1
+#### 1. What years does the data cover? Are there data available for each of these years?
 
-What years does the data cover? are there data for each of these years?
-
-The years that the data covers represents the range of time that is included about the MLB in the database. Taking the MAX and MIN of the year ID field in the batting table reveals the MAX and MIN of the years the data covers for batting statistics about MLB players. By comparing the MAX and MIN of the yearID field from Batting, Pitching Fielding, and Teams we find that the data covers MLB information from 1871 to 2013. 
+The years that the data covers represents the range of time that is included about the MLB in the database. Taking the MAX and MIN of the year ID field in the batting table reveals the MAX and MIN of the years the data covers for batting statistics about MLB players. By comparing the MAX and MIN of the yearID field from Batting, Pitching Fielding, and Teams we find that the data covers MLB information from **1871 to 2013**. 
 
 The SQL used in the RSQLite function call to find the MAX and MIN from the various tables is given here. 
 
 ```{r, results='hide'}
-# Question 1. What years does the data cover? are there data for each of these years?
+
+# What years does the data cover? Are there data available for each of these years?
 
 dbGetQuery(db, "SELECT MIN(yearID) AS minYear, MAX(yearID) AS maxYear FROM Teams")
 dbGetQuery(db, "SELECT MIN(yearID) AS minYear, MAX(yearID) AS maxYear FROM Batting")
@@ -45,9 +48,9 @@ dbGetQuery(db, "SELECT MIN(yearID) AS minYear, MAX(yearID) AS maxYear FROM Pitch
 dbGetQuery(db, "SELECT MIN(yearID) AS minYear, MAX(yearID) AS maxYear FROM Fielding")
 ```
 
-To find if each of the years has data we will try to see if there are any years in the yearID field which are not present in the 1871 to 2013 range. More particularly we will examine the yearID field and extract all the distinct yearID values then order them from least to greatest. Then using "==" we will compare them to a R vector which has a sequence of integers from 1871 to 2013. 
+To find if each of the years has data we will try to see if there are any years in the yearID field which are not present in the 1871 to 2013 range.
 
-The R and SQL for this is given here. 
+More particularly we will *SELECT* the *DISTINCT* yearID values then *ORDER BY* yearID. Then using the "==" operator we will compare the distinct values to a R vector which has a sequence of integers from 1871 to 2013. We will know about the availability of data by taking the sum of the logical comparison. 
 
 ```{r, results='hide'}
 years_info = dbGetQuery(db, "SELECT DISTINCT yearID 
@@ -58,7 +61,7 @@ years_bat =  dbGetQuery(db, "SELECT DISTINCT yearID
                               FROM Batting 
                               ORDER BY yearID")
 
-years = seq(1871,2013) #sequence of intergers in a vector from 1871 to 2013
+years = seq(1871,2013) # sequence of intergers in a vector from 1871 to 2013
 
 length(years)
 sum(years_info$yearID ==  years)
@@ -67,24 +70,21 @@ sum(years_bat$yearID ==  years)
 
 We find that from the Teams and Batting tables there is data for each of the years from 1871 to 2013. We verify this by comparing the sequence to the distinct yearID values of each table and find that we get 143 distinct year values which means there is data for all the years. 
 
-### QUESTION 2
 
-How many (unique) people are included in the database? How many are players, managers, etc?
+#### 2. How many (unique) people are included in the database? How many are players, managers, etc?
 
 The amount of unique people included in the database can be found by counting all the distinct values of the playerID field in the MASTER TABLE. Being that the MASTER TABLE is one of the four "Main" tables this indicates that the MASTER table has the information of all the playerIDs involved in all the other Tables. 
 
 The R and SQL for this is shown here. We COUNT the DISTINCT playerIDs in the playerID field of the Master table which gives us the same result as counting the playerIDs. 
 
 ```{r}
-#QUESTION 2: How many (unique) people are included in the database? How many are players, managers, etc?
+#2: How many (unique) people are included in the database? How many are players, managers, etc?
 
 dbGetQuery(db, "SELECT COUNT(DISTINCT playerID) AS numP 
                  FROM Master")
 ```
 
-### Question 3 
-
-How many players became managers?
+#### 3. How many players became managers?
 
 This questions is asking out of all the players included in our Master table are there any that are also in the Managers table indicating that a player became a manager. Since the players are represented through their playerIDs by using an INNER JOIN on the tables we find only the playerIDs that are present in both tables. Thus counting the DISTINCT playerIDs from this result gave us our answer of the total number of players that turned into a manager which is 679. 
 
@@ -99,14 +99,10 @@ dbGetQuery(db, "SELECT COUNT(DISTINCT mm.playerID) AS numPM
                     ON mm.playerID = m.playerID")
 ```
 
-### QUESTION 4
-
-How many players are there in each year, from 2000 to 2013? Do all teams have the same number of players?
+#### 4. How many players are there in each year, from 2000 to 2013? Do all teams have the same number of players?
 
 
 We find that the position and other information about each player for each year are in the Appearances Table. By grouping by yearID then counting the number of yearIDS then only looking at yearIDs after 1999 in the Appearances table we find the amount of players by year. We can verify if this result is correct by doing the same operation on the Batting table which gives batting information for each player for each year they played. 
-
-This R and SQL for this is shown here. Are results are consistant. 
 
 ```{r, results='hide'}
 #QUESTION 4: How many players are there in each year, from 2000 to 2013? Do all teams have the same number of players?
@@ -126,22 +122,16 @@ dbGetQuery(db, "SELECT yearID, COUNT(yearID) AS Num
 
 Inorder to find if all the teams have the same number of people we create a data frame that shows the amount of people per team per year. We find that these values range from 39 to 59 for the number of people per teams over all years. This shows that teams had did not all have the same number of people. 
 
-The R and SQL for this is shown below. 
-
 ```{r}
 plyr_nums = dbGetQuery(db, "SELECT teamID, yearID, COUNT(teamID) AS Num FROM Appearances WHERE yearID > 1999 GROUP BY teamID, yearID" )
 head(plyr_nums)
 c(max(plyr_nums$Num), min(plyr_nums$Num))
 ```
 
-### QUESTION 5
-
-What team won the World Series in 2010? Include the name of the team, the league and division.
+#### 5. What team won the World Series in 2010? Include the name of the team, the league and division.
 
 To find the 2010 World Series winner we look at the Teams table since in this table contains yearly baseball information for each team. 
 In order to find the 2010 winner we find the team that has a yearID value equal to 2010 and also has a 'Y' in their WSWin field which indicates if they won the World Series. 
-
-The R and SQL to find the 2010 World Series winner is shown here. 
 
 ```{r}
 #QUESTION 5: What team won theWorld Series in 2010? Include the name of the team, the league and division.
@@ -155,9 +145,7 @@ dbGetQuery(db, "SELECT yearID, name, lgID, divID, WSWin
 We observe that the San Francisco Giants won the World Series in 2010.
 
 
-### QUESTION 6
-
-What team lost the World Series each year? Again, include the name of the team, league, and division.
+#### 6. What team lost the World Series each year? Again, include the name of the team, league, and division.
 
 To find which team lost the world series every year we will use the Teams table again and make use of the "WSWin" field or World Series Win field and the "LgWin" field. We know that only the league winners of each year are able to participate in the World Series thus we want for each year the team that won their league which is indicated by LgWin = 'Y' but lost the World Series which is indicated by WSWin = 'N'. 
 
@@ -195,9 +183,7 @@ setdiff(wsL$yearID,wsW$yearID)
 
 We have found the losers for every World Series as well as their leagueID and divisionID. What is interesting is that there are more teams who won their league and lost the World Series (118 teams) than won the World Series (114 teams). By looking futher into the years contained in the list of winning teams of the World Series versus the list of losing teams we find that in 1885 the World Series resulted in a tie. The year 1890 is also not present in the list of winning teams. 
 
-### QUESTION 7
-
-Compute the table of World Series winners for all years, again with the name of the team, league and division.
+#### 7. Compute the table of World Series winners for all years, again with the name of the team, league and division.
 
 Using similar techniques from Question 6 we can find the name, team, league and division of the World Series winner for each year in the Teams table. We will select the yearID, name, league ID, and division ID from Teams table then specify that we only want the tuples which have a 'Y' value in the WSWin field. 
 
@@ -212,9 +198,7 @@ teamWSWs = dbGetQuery(db, "SELECT yearID, name, lgID, divID
 head(teamWSWs)
 ```
 
-### QUESTION 8
-
-Compute the table that has both the winner and runner-up for the World Series in each tuple/row for all years, again with the name of the team, league and division, and also the number games the losing team won in the series. 
+#### 8. Compute the table that has both the winner and runner-up for the World Series in each tuple/row for all years, again with the name of the team, league and division, and also the number games the losing team won in the series. 
 
 All of the relavant information to solve this question can be found in the SeriesPost table as shown below. We only require the teams that were involved in a world series so we will specify that the round feild values must be eqaul to 'WS'.
 
@@ -242,9 +226,7 @@ dbGetQuery(db ,  "SELECT COUNT(*) FROM SeriesPost WHERE round = 'WS'")
 To avoid duplicate yearIDs the occur after the left join we only select the DISTINCT yearIDs. We find that we have the correct result since we have 116 distinct yearIDs.
 
 
-### QUESTION 9
-
-Do you see a relationship between the number of games won in a season and winning the World Series?
+#### 9. Do you see a relationship between the number of games won in a season and winning the World Series?
 
 To find the number of games won in a season we look to the "W" field in Teams which shows the number of wins a team had in a particular year/season. Then by only observing the teams that have a 'Y' in their "WSWin" field we create a data frame that has the world series winnners for each season and the number of wins that the team had. 
 
@@ -253,7 +235,6 @@ While oberving the Teams table we find that the teams ended the season playing a
 The SQL and R code is shown here. 
 
 ```{r}
-
 #QUESTION 9. Do you see a relationship between the number of games won in a season and winning the World Series?
 
 gWdf = dbGetQuery(db, "SELECT t.yearID, t.name, t.WSWin, t.W, t.G, a.avg, ((t.W - a.avg)/a.std) as fW, (t.W / t.G) as nW
@@ -268,7 +249,6 @@ head(gWdf)
 ```
 
 ```{r, echo=FALSE, warning=FALSE}
-library(ggplot2)
 
 p1 = ggplot(data = gWdf, aes(x = yearID, y = W)) 
 p1 + geom_point()+ ggtitle("Num of Wins vs Year (By WS Winner)") +  
@@ -284,9 +264,7 @@ p2 + geom_point() + ggtitle("Standardized Num of Wins vs Year (By WS Winner)") +
 
 The first graph shows the number of wins the World series winner had per year. The second graph shows the standardized score of wins the World Series winning team has per year. Both graphs show variablity in the amount of World Series wins, and since there is no evident pattern it may be possible that the number of season wins does not have a strong relationship with World Series wins. However, most teams that won the world series had over 85 wins.
 
-### QUESTION 10 
-
-In 2003, what were the three highest salaries? (We refer here to unique salaries, i.e., there may be several players getting the exact same amount.) Find the players who got any of these 3 salaries with all of their details?
+#### 10. In 2003, what were the three highest salaries? (We refer here to unique salaries, i.e., there may be several players getting the exact same amount.) Find the players who got any of these 3 salaries with all of their details?
 
 To find information about player salaries per year we can look to the Salaries table. Here we are able to ORDER By salary and find the highest salaries given in a particular year. We can then join the Master table to gain information about the player name and then join the Appearances table to gain information about the player's position and lastly join the Teams table to find information about the team name.
 
@@ -330,10 +308,7 @@ dbGetQuery(db, "SELECT s.yearID, s.teamID, s.lgID, m.nameFirst,m.nameLast, s.pla
 We observe that Alex Rodriguez recieved the largest salary of $22,000,000 who batted for 161 games in 2003 as part of the Texas Rangers.
 
 
-### QUESTION 11 
-
-For 2010, compute the total payroll of each of the different teams. Next compute the team
-payrolls for all years in the database for which we have salary information. Display these in a plot.
+#### 11. For 2010, compute the total payroll of each of the different teams. Next compute the team payrolls for all years in the database for which we have salary information. Display these in a plot.
 
 To compute the total payroll of each of the different teams in 2010 we find the salaries for each player in Salaries table. We then use GROUP BY to group the Salaries table by both teamID and yearID then use SUM(salary) which gives the salaries of each team for each year.
 
@@ -350,12 +325,12 @@ sals_2010 = dbGetQuery(db, "SELECT yearID, teamID, SUM(salary) as sal_total
                               ORDER BY yearID" ) 
 ```
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, warning=FALSE, fig.width=10, fig.height=11}
 p_sal2010 = ggplot(data = sals_2010, aes(x = teamID, y = sal_total, fill=teamID)) 
 p_sal2010 + geom_bar(stat="identity") + ggtitle("Team vs Total Salary (2010)") +  
   xlab("Team") +  
-  ylab("Total Salary")
-
+  ylab("Total Salary") + theme(axis.text.x = element_text(colour = "grey20", size = 9, angle = 90, hjust = 0.5, vjust = 0.5),
+          text = element_text(size = 12))
 ```
 
 Here we can see that some teams such as (NYA) and (BOS) appear to have a costlier payroll in 2010 than other teams. 
@@ -370,19 +345,30 @@ sals_all =  dbGetQuery(db, "SELECT yearID, teamID, SUM(salary) as sal_total
                               ORDER BY yearID" ) 
 ```
 
+
 ```{r, echo=FALSE}
+# used to change figure size
+
+fig <- function(width, heigth){
+     options(repr.plot.width = width, repr.plot.height = heigth)
+}
+
+```
+
+
+```{r, echo=FALSE, fig.width=10,fig.height=11}
 p_sal_all = ggplot(data = sals_all, aes(x = teamID, y = sal_total, fill=teamID)) 
 p_sal_all + geom_bar(stat="identity") + ggtitle("Team vs Total Salary (All Time)") +  
   xlab("Team") +  
-  ylab("Total Salary")
+  ylab("Total Salary") + theme(axis.text.x = element_text(colour = "grey20", size = 9, angle = 90, hjust = 0.5, vjust = 0.5),
+          text = element_text(size = 12))
+
+
 ```
 
 By looking at the graph of all the payrolls from all the teams over all the years team NYA, New York Yankees appears to have the largest payroll.
 
-### QUESTION 12
-
-Explore the change in salary over time. Use a plot. Identify the teams that won the world
-series or league on the plot. How does salary relate to winning the league and/or world series.
+#### 12. Explore the change in salary over time. Use a plot. Identify the teams that won the world series or league on the plot. How does salary relate to winning the league and/or world series.
  
 To explore chnge in salary over time we will create scatter plot that shows the salaries for each team on the y-axis and year on the x-axis, then we  highlight the World Series and League winners within the plot. First we notice that we need to sum the salaries in the Salary table by grouping by team and year. Then by joining the Teams table we are able to find the teams that won the world series and won thier league for each year using "WSWin" and "LGWin". When joining we align the yearIDs and teamIDs of both tables. 
 
@@ -419,9 +405,7 @@ p4 + geom_point() +  ggtitle("Total Salary for each Team vs Year (WS)") +
 
 The first graph highlights league winners and we can observe that there is not a clear pattern between the salaries given by each team per year and their ability to win the league. Where as for the second graph it appears that teams that payed higher in salaries tend to win the World Series over the years. 
 
-### QUESTION 14
-
-Which player has hit the most home runs? Show the number per year.
+#### 14. Which player has hit the most home runs? Show the number per year.
 
 To find the all time statistics about home run hits we observe the Batting table which displays each player's Batting statistic per year. By suming "HR" (the number of homeruns hits per year) by each player using playerID we find the total amount of homeruns hit by each player over all the years. In order to get player name information we JOIN with the Master table and lastly ORDER BY HR. We find that Barry Bonds has the most homeruns with 762 compared with all other player over the years the data covers. 
 
@@ -456,9 +440,7 @@ ggplot(data = bb_HR, aes(x = yearID, y = HR))  + geom_point() +          ggtitle
 
 It is interesting to see that Barry Bonds increased the amount of homeruns he hit per year quite steadily. In the time frame of 2000-2005 Bonds it appears hit more home runs than in any other 5 year time frame. 
 
-### QUESTION 16 
-
-Do players who hit more home runs receive higher salaries?
+#### 16. Do players who hit more home runs receive higher salaries?
 
 We will be comparing the yearly salary for each player in the Salary table by the number of homeruns the player hit that same year by using the Batting table. We will be observing the number of homeruns a player hit compared to their salary. Below we can see there is not a clear pattern that shows as the number of homeruns increases the salary increases so this relationship may not have a linear relationship.
 
@@ -481,11 +463,11 @@ ggplot(bats , aes(x = HR, y=salary, colour=yearID)) + geom_point() +    ggtitle(
 ```
 
 
-## Conclusion 
+### Conclusion 
 
 In this report we used R and SQL to explore interesting aspects of "The Lahman Baseball" SQLite Database. While comparing many aspects of baseball together it was noteable to find most of the teams that won the World Series across all the years of given data showed to have higher team salaries.
 
 
-## Code of Conduct
+### Code of Conduct
 
-For Homework 3 part of the STA141B Fall 2020 class I did not look for or use code that addresses this dataset. I implemented the computational approach myself. I used ideas from lecture, office hours, and piazza in my code. 
+For The SQL Lahman MLB Project part of the STA141B Fall 2020 I did not look for or use code that addresses this dataset. I implemented the computational approach myself. I used ideas from lecture, office hours, and piazza in my code. 
